@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đặt Lịch Khám - SmartCare</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="brand">🏥 SmartCare</a>
+            <ul class="nav-links">
+                <li><a href="/patient/dashboard">Dashboard</a></li>
+                <li><a href="/patient/search-doctors">Tìm Bác Sĩ</a></li>
+                <li><a href="/patient/appointments">Lịch Khám</a></li>
+            </ul>
+            <div class="nav-right">
+                <a href="/patient/profile">👤 Hồ Sơ</a>
+                <a href="/" class="btn btn-outline" onclick="logout()">Đăng Xuất</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>📅 Đặt Lịch Khám</h1>
+        <p>Chọn ngày giờ và lý do khám bệnh</p>
+    </div>
+
+    <div class="container" style="max-width: 600px; margin: 2rem auto;">
+        <div class="card">
+            <h3>Chi Tiết Đặt Lịch</h3>
+            
+            <form id="bookingForm">
+                <div id="alertContainer"></div>
+
+                <div class="form-group">
+                    <label for="doctorName">Bác Sĩ</label>
+                    <input type="text" id="doctorName" placeholder="Đang tải..." readonly>
+                </div>
+
+                <div class="form-group">
+                    <label for="specialty">Chuyên Khoa</label>
+                    <input type="text" id="specialty" placeholder="Đang tải..." readonly>
+                </div>
+
+                <div class="form-group">
+                    <label for="scheduleId">Chọn Lịch Làm Việc</label>
+                    <select id="scheduleId" required>
+                        <option value="">-- Đang tải lịch có sẵn --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="reason">Lý Do Khám</label>
+                    <textarea id="reason" placeholder="Mô tả triệu chứng hoặc lý do khám bệnh" rows="4" required></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">Đặt Lịch</button>
+                <a href="/patient/search-doctors" class="btn btn-outline" style="width: 100%; text-align: center;">← Quay Lại</a>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 SmartCare. Tất cả quyền được bảo lưu.</p>
+    </footer>
+
+    <script>
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const role = localStorage.getItem('role');
+            
+            if (!token || role !== 'PATIENT') {
+                window.location.href = '/login';
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+
+        function getDoctorIdFromUrl() {
+            const pathParts = window.location.pathname.split('/');
+            return pathParts[pathParts.length - 1];
+        }
+
+        async function loadDoctorInfo() {
+            const doctorId = getDoctorIdFromUrl();
+            const token = localStorage.getItem('token');
+            const alertContainer = document.getElementById('alertContainer');
+
+            try {
+                const response = await fetch(`/api/v1/users/${doctorId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (data.code === 200 && data.data) {
+                    const doctor = data.data;
+                    document.getElementById('doctorName').value = doctor.fullName;
+                    document.getElementById('specialty').value = doctor.specialtyName || 'Chưa cập nhật';
+                    
+                    loadDoctorSchedules(doctorId);
+                } else {
+                    alertContainer.innerHTML = `<div class="alert alert-danger">Không tìm thấy bác sĩ này</div>`;
+                }
+            } catch (error) {
+                alertContainer.innerHTML = `<div class="alert alert-danger">Lỗi tải thông tin: ${error.message}</div>`;
+            }
+        }
+
+        async function loadDoctorSchedules(doctorId) {
+            const token = localStorage.getItem('token');
+            const scheduleSelect = document.getElementById('scheduleId');
+            const alertContainer = document.getElementById('alertContainer');
+
+            try {
+                const response = await fetch(`/api/v1/schedules/available?doctorId=${doctorId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (data.code === 200 && data.data && data.data.length > 0) {
+                    scheduleSelect.innerHTML = '<option value="">-- Vui lòng chọn ca khám --</option>';
+                    
+                    data.data.forEach(schedule => {
+                        const option = document.createElement('option');
+                        
+                        const sId = schedule.id !== undefined ? schedule.id : schedule.scheduleId;
+                        option.value = sId; 
+                        
+                        option.text = `${schedule.workDate} | ${schedule.startTime} - ${schedule.endTime}`;
+                        scheduleSelect.appendChild(option);
+                    });
+                } else {
+                    scheduleSelect.innerHTML = '<option value="">Bác sĩ chưa có lịch trống</option>';
+                }
+            } catch (error) {
+                alertContainer.innerHTML = `<div class="alert alert-danger">Lỗi tải lịch: ${error.message}</div>`;
+            }
+        }
+
+        async function handleBooking(e) {
+            e.preventDefault();
+
+            const scheduleIdVal = document.getElementById('scheduleId').value;
+            const reason = document.getElementById('reason').value;
+            const token = localStorage.getItem('token');
+            const alertContainer = document.getElementById('alertContainer');
+
+            if (!scheduleIdVal || scheduleIdVal === "") {
+                alertContainer.innerHTML = '<div class="alert alert-danger">Vui lòng chọn một ca khám cụ thể!</div>';
+                return;
+            }
+
+            const finalScheduleId = parseInt(scheduleIdVal, 10);
+
+            try {
+                const response = await fetch('/api/v1/appointments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        scheduleId: finalScheduleId,
+                        reason: reason
+                    })
+                });
+
+                const data = await response.json();
+
+                // 🛠️ ĐÃ SỬA CHỖ NÀY: Chấp nhận cả mã 201 (Created) hoặc 200 (OK)
+                if (response.ok && (data.code === 200 || data.code === 201)) {
+                    alertContainer.innerHTML = '<div class="alert alert-success">Đặt lịch thành công! Đang chuyển hướng...</div>';
+                    setTimeout(() => {
+                        window.location.href = '/patient/appointments';
+                    }, 1500);
+                } else {
+                    // Hiển thị trực tiếp lỗi từ Spring Boot (thường là lỗi 400 Bad Request)
+                    alertContainer.innerHTML = `<div class="alert alert-danger">${data.message || 'Lỗi: Dữ liệu gửi lên không hợp lệ'}</div>`;
+                }
+            } catch (error) {
+                alertContainer.innerHTML = `<div class="alert alert-danger">Không thể kết nối đến máy chủ: ${error.message}</div>`;
+            }
+        }
+
+        document.getElementById('bookingForm').addEventListener('submit', handleBooking);
+        checkAuth();
+        loadDoctorInfo();
+    </script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký - SmartCare</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="brand">🏥 SmartCare</a>
+            <div class="nav-right">
+                <a href="/" class="btn btn-outline">← Quay Lại</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Register Form -->
+    <form id="registerForm">
+        <h2 class="text-center" style="color: var(--primary-color); margin-bottom: 2rem;">Đăng Ký Tài Khoản</h2>
+
+        <div id="alertContainer"></div>
+
+        <div class="form-group">
+            <label for="fullName">Họ và Tên</label>
+            <input type="text" id="fullName" name="fullName" placeholder="Nhập họ và tên" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="Nhập email" required>
+        </div>
+
+        <div class="form-group">
+            <label for="username">Tên Đăng Nhập</label>
+            <input type="text" id="username" name="username" placeholder="Nhập tên đăng nhập" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Mật Khẩu</label>
+            <input type="password" id="password" name="password" placeholder="Nhập mật khẩu" required>
+        </div>
+
+        <div class="form-group">
+            <label for="confirmPassword">Xác Nhận Mật Khẩu</label>
+            <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Xác nhận mật khẩu" required>
+        </div>
+
+        <div class="form-group">
+            <label for="role">Đăng Ký Là</label>
+            <select id="role" name="role" required>
+                <option value="">-- Chọn vai trò --</option>
+                <option value="PATIENT">Bệnh Nhân</option>
+                <option value="DOCTOR">Bác Sĩ</option>
+            </select>
+        </div>
+
+        <!-- Nếu là bác sĩ, hiển thị thêm fields -->
+        <div id="doctorFields" style="display: none;">
+            <div class="form-group">
+                <label for="licenseNumber">Số Giấy Phép Hành Nghề *</label>
+                <input type="text" id="licenseNumber" name="licenseNumber" placeholder="Nhập số giấy phép">
+            </div>
+
+            <div class="form-group">
+                <label for="specialtyId">Chuyên Khoa *</label>
+                <select id="specialtyId" name="specialtyId">
+                    <option value="">-- Chọn chuyên khoa --</option>
+                    <option value="1">Bác sĩ Đa Khoa</option>
+                    <option value="2">Tim Mạch</option>
+                    <option value="3">Thần Kinh</option>
+                    <option value="4">Nhi Khoa</option>
+                    <option value="5">Chỉnh Hình</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="cvFile">Tải Lên CV (PDF/DOC/DOCX) *</label>
+                <input type="file" id="cvFile" name="cvFile" accept=".pdf,.doc,.docx" required>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">Đăng Ký</button>
+
+        <div style="text-align: center;">
+            <p>Đã có tài khoản? <a href="/login" style="color: var(--primary-color); text-decoration: none; font-weight: bold;">Đăng Nhập</a></p>
+        </div>
+    </form>
+
+    <footer>
+        <p>&copy; 2026 SmartCare. Tất cả quyền được bảo lưu.</p>
+    </footer>
+
+    <script>
+        // Hiển thị fields cho bác sĩ
+        document.getElementById('role').addEventListener('change', function() {
+            const doctorFields = document.getElementById('doctorFields');
+            const licenseInput = document.getElementById('licenseNumber');
+            const specialtyInput = document.getElementById('specialtyId');
+            const cvFileInput = document.getElementById('cvFile');
+            
+            if (this.value === 'DOCTOR') {
+                doctorFields.style.display = 'block';
+                // Thêm required khi show doctor fields
+                licenseInput.required = true;
+                specialtyInput.required = true;
+                cvFileInput.required = true;
+            } else {
+                doctorFields.style.display = 'none';
+                // XÓA required khi ẩn doctor fields
+                licenseInput.required = false;
+                specialtyInput.required = false;
+                cvFileInput.required = false;
+            }
+        });
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('fullName').value;
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const role = document.getElementById('role').value;
+            const alertContainer = document.getElementById('alertContainer');
+
+            console.log('🔍 Form Data:', { fullName, email, username, password, role });
+
+            if (password !== confirmPassword) {
+                alertContainer.innerHTML = `<div class="alert alert-danger">Mật khẩu xác nhận không khớp</div>`;
+                return;
+            }
+
+            try {
+                // Nếu đăng ký là DOCTOR, dùng endpoint register-doctor với multipart/form-data
+                if (role === 'DOCTOR') {
+                    const licenseNumber = document.getElementById('licenseNumber').value;
+                    const specialtyId = document.getElementById('specialtyId').value;
+                    const cvFile = document.getElementById('cvFile').files[0];
+                    
+                    if (!licenseNumber || !specialtyId || !cvFile) {
+                        alertContainer.innerHTML = `<div class="alert alert-danger">Số giấy phép, chuyên khoa và CV không được để trống</div>`;
+                        return;
+                    }
+
+                    // Kiểm tra kích thước file (tối đa 10MB)
+                    if (cvFile.size > 10 * 1024 * 1024) {
+                        alertContainer.innerHTML = `<div class="alert alert-danger">File CV không vượt quá 10MB</div>`;
+                        return;
+                    }
+
+                    // Tạo FormData để gửi multipart
+                    const formData = new FormData();
+                    formData.append('username', username);
+                    formData.append('password', password);
+                    formData.append('fullName', fullName);
+                    formData.append('email', email);
+                    formData.append('licenseNumber', licenseNumber);
+                    formData.append('specialtyId', specialtyId);
+                    formData.append('cvFile', cvFile);
+
+                    const response = await fetch('/api/v1/auth/register-doctor', {
+                        method: 'POST',
+                        body: formData // KHÔNG set Content-Type, browser tự động
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        alertContainer.innerHTML = `<div class="alert alert-success">${data.message || 'Đăng ký bác sĩ thành công! Chuyển hướng...'}</div>`;
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 3000);
+                    } else {
+                        alertContainer.innerHTML = `<div class="alert alert-danger">${data.message || 'Đăng ký thất bại'}</div>`;
+                    }
+                } else {
+                    // Đăng ký PATIENT (JSON)
+                    console.log('📤 Sending POST to /api/v1/auth/register with:', { fullName, email, username, password });
+                    
+                    const response = await fetch('/api/v1/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fullName, email, username, password })
+                    });
+
+                    console.log('📥 Response status:', response.status, response.statusText);
+                    console.log('📥 Response.ok:', response.ok);
+                    console.log('📥 Response headers:', response.headers);
+                    
+                    let data = {};
+                    try {
+                        data = await response.json();
+                        console.log('📥 Response JSON:', data);
+                    } catch (jsonError) {
+                        console.error('❌ JSON Parse Error:', jsonError);
+                        console.log('📥 Raw Response Text:', await response.text());
+                    }
+
+                    if (response.ok && data.code === 201) {
+                        alertContainer.innerHTML = `<div class="alert alert-success">${data.message || 'Đăng ký thành công! Chuyển hướng...'}</div>`;
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 2000);
+                    } else {
+                        alertContainer.innerHTML = `<div class="alert alert-danger">❌ (${response.status}) ${data.message || 'Đăng ký thất bại'}</div>`;
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Full Error Object:', error);
+                console.error('❌ Error Stack:', error.stack);
+                alertContainer.innerHTML = `<div class="alert alert-danger">❌ Lỗi: ${error.message || error}</div>`;
+            }
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', handleRegister);
+    </script>
+</body>
+</html>
