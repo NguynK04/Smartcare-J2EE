@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi Tiết Lịch Khám - SmartCare</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="brand">🏥 SmartCare</a>
+            <ul class="nav-links">
+                <li><a href="/patient/dashboard">Dashboard</a></li>
+                <li><a href="/patient/search-doctors">Tìm Bác Sĩ</a></li>
+                <li><a href="/patient/appointments" class="active">Lịch Khám</a></li>
+            </ul>
+            <div class="nav-right">
+                <a href="/patient/profile">👤 Hồ Sơ</a>
+                <a href="/" class="btn btn-outline" onclick="logout()">Đăng Xuất</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>📄 Chi Tiết Lịch Khám</h1>
+    </div>
+
+    <div class="container" style="max-width: 600px; margin: 2rem auto;">
+        <div class="card" id="detailCard">
+            <p style="text-align: center; color: #999;">Đang tải thông tin...</p>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 SmartCare. Tất cả quyền được bảo lưu.</p>
+    </footer>
+
+    <script>
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token || localStorage.getItem('role') !== 'PATIENT') {
+                window.location.href = '/login';
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+
+        function getAppointmentIdFromUrl() {
+            const pathParts = window.location.pathname.split('/');
+            return pathParts[pathParts.length - 1];
+        }
+
+        async function loadAppointmentDetail() {
+            const appointmentId = getAppointmentIdFromUrl();
+            const token = localStorage.getItem('token');
+            const container = document.getElementById('detailCard');
+
+            try {
+                // Gọi API lấy chi tiết lịch khám mà ông đã viết trong Controller
+                const response = await fetch(`/api/v1/appointments/${appointmentId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.code === 200) {
+                    const appt = data.data;
+
+                    // Xử lý huy hiệu trạng thái & nút bấm
+                    let statusBadge = '';
+                    let actionBtn = '';
+                    
+                    if (appt.status === 'PENDING') {
+                        statusBadge = '<span class="badge" style="background: #ffcc00; color: #000;">Chờ Xác Nhận</span>';
+                        actionBtn = `<button onclick="cancelAppointment(${appt.appointmentId})" class="btn btn-danger" style="width: 100%; margin-top: 1rem;">Hủy Lịch</button>`;
+                    } else if (appt.status === 'CONFIRMED') {
+                        statusBadge = '<span class="badge" style="background: #17a2b8;">Đã Xác Nhận</span>';
+                        // Đã xác nhận nhưng vẫn cho hủy (tùy logic nghiệp vụ của ông)
+                        actionBtn = `<button onclick="cancelAppointment(${appt.appointmentId})" class="btn btn-danger" style="width: 100%; margin-top: 1rem;">Hủy Lịch</button>`;
+                    } else if (appt.status === 'COMPLETED') {
+                        statusBadge = '<span class="badge" style="background: #28a745;">Đã Khám Xong</span>';
+                    } else if (appt.status === 'CANCELLED') {
+                        statusBadge = '<span class="badge" style="background: #dc3545;">Đã Hủy</span>';
+                    }
+
+                    container.innerHTML = `
+                        <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Thông Tin Đặt Lịch</h3>
+                        
+                        <p style="margin-bottom: 0.8rem;"><strong>Mã Lịch:</strong> #${appt.appointmentId}</p>
+                        <p style="margin-bottom: 0.8rem;"><strong>Bác Sĩ Phụ Trách:</strong> ${appt.doctorName || 'N/A'}</p>
+                        <p style="margin-bottom: 0.8rem;"><strong>Ngày Khám:</strong> ${appt.workDate}</p>
+                        <p style="margin-bottom: 0.8rem;"><strong>Thời Gian:</strong> ${appt.startTime} - ${appt.endTime}</p>
+                        <p style="margin-bottom: 0.8rem;"><strong>Lý Do Khám:</strong> ${appt.reason || 'Không có'}</p>
+                        <p style="margin-top: 1.5rem; font-size: 1.1rem;"><strong>Trạng Thái:</strong> ${statusBadge}</p>
+                        
+                        ${actionBtn}
+                        <a href="/patient/appointments" class="btn btn-outline" style="width: 100%; display: block; text-align: center; margin-top: 1rem; box-sizing: border-box;">← Quay Lại Danh Sách</a>
+                    `;
+                } else {
+                    container.innerHTML = `<div class="alert alert-danger">Không tìm thấy thông tin lịch khám!</div>
+                                           <a href="/patient/appointments" class="btn btn-outline" style="width: 100%; text-align: center; display: block; margin-top: 1rem;">← Quay Lại</a>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger">Lỗi kết nối: ${error.message}</div>`;
+            }
+        }
+
+        async function cancelAppointment(appointmentId) {
+            if (!confirm('Bạn có chắc chắn muốn hủy lịch khám này không?')) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                // Gọi API hủy lịch khám
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/cancel`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    alert('Đã hủy lịch khám thành công!');
+                    loadAppointmentDetail(); // Render lại trang để cập nhật huy hiệu thành "Đã Hủy"
+                } else {
+                    const data = await response.json();
+                    alert(`Lỗi: ${data.message || 'Không thể hủy lịch'}`);
+                }
+            } catch (error) {
+                alert(`Lỗi kết nối: ${error.message}`);
+            }
+        }
+
+        checkAuth();
+        loadAppointmentDetail();
+    </script>
+</body>
+</html>
